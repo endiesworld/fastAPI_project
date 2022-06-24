@@ -1,0 +1,5 @@
+# Create a virtual environment at the root directory of this project
+# Activate the virtual environment
+# Do "pip install -r requirements.txt
+
+fastapi[all] # This will install fastapi and all other dependencies
