@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union
+from typing import Union, List
 
 from turtle import title
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -23,6 +23,11 @@ fake_users_db = {
         "disabled": True,
     },
 }
+
+posts_db = [{
+    "title": "Write title here",
+    "content": "write content here"
+}]
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -97,11 +102,16 @@ async def root():
 
 
 @app.get("/posts")
-async def get_post(post: Post, token: str = Depends(oauth2_scheme))->Post:
+async def get_post(token: str = Depends(oauth2_scheme))->List[Post]:
+    posts = [Post(**post) for post in posts_db]
+    return posts
+
+
+@app.post("/posts")
+async def get_post(post: Post, token: str = Depends(oauth2_scheme)) -> Post:
     post = post.json()
     post["creatAt"] = datetime.now()
     return Post(**post)
-
 
 @app.get("/users/me")
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
