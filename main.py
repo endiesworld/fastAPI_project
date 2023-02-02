@@ -1,8 +1,9 @@
+import uuid
 from datetime import datetime
 from typing import Union, List
 
 from turtle import title
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
@@ -24,13 +25,52 @@ fake_users_db = {
     },
 }
 
-posts_db = [{
-    "title": "Write title here",
-    "content": "write content here"
-}]
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+all_posts = [{"title": "post_one", "content": "content for post one", "id": "1", "rating": 4}, 
+             {"title": "post_two", "content": "content for post two", "id": "2", "rating": 3}]
+
+
+def create_post(post):
+    all_posts.append(post)
+    return post
+
+
+def get_one_post(id):
+    post = [post for post in all_posts if post["id"] == id]
+    if len(post) > 0:
+        return post[0]
+    return None
+
+
+def delete_one_post(id):
+    post_index = None
+    deleted_post = None
+    for index, post in enumerate(all_posts):
+        if post["id"] == id:
+            post_index = index
+            deleted_post = post
+            break
+    if post_index is not None:
+        all_posts.pop(post_index)
+    return deleted_post
+
+
+def update_one_post(post_id, update_post):
+    post_index = None
+    for index, post in enumerate(all_posts):
+        if post["id"] == post_id:
+            post_index = index
+            break
+    if post_index is not None:
+        all_posts[post_index]["title"] = update_post["title"]
+        all_posts[post_index]["content"] = update_post["content"]
+        return all_posts[post_index]
+    return None
+
+
 
 
 def fake_hash_password(password: str):
@@ -50,6 +90,7 @@ class UserInDB(User):
 class Post(BaseModel):
     title: str
     content: str
+    rating: Union[int, None] = None
 
 def get_user(db, username: str):
     if username in db:
@@ -96,6 +137,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": user.username, "token_type": "bearer"}
 
 
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -103,7 +145,7 @@ async def root():
 
 @app.get("/posts")
 async def get_post(token: str = Depends(oauth2_scheme))->List[Post]:
-    posts = [Post(**post) for post in posts_db]
+    posts = [Post(**post) for post in all_posts]
     return posts
 
 
@@ -120,5 +162,25 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
 
 @app.post("/createposts")
 async def createposts(new_post: Post):
-    print(new_post)
-    return {'new_post': new_post}
+    new_post_dict = new_post.dict()
+    new_post_dict["id"] = uuid.uuid1()
+    created_post = create_post(new_post_dict)
+    return {'new_post': created_post}
+
+
+@app.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_post(post_id: str, response: Response):
+    post = delete_one_post(post_id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f'No post for ID: {post_id}')
+    
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.put("/posts/{post_id}")
+async def update_post(post_id: str, post: Post):
+    post = update_one_post(post_id, post.dict())
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f'No post for ID: {post_id}')
+    return {'post': post}
